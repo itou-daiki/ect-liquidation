@@ -410,6 +410,7 @@ def main():
                             
                             st.success("利用実績簿が正常に生成されました！")
                             st.warning("生成されたExcelファイルは必ず確認し、必要に応じて手動で調整してください。")
+                            st.warning("証明書のPDFも一緒に提出するのを忘れずに！")
                             
                         except Exception as e:
                             st.error(f"実績簿の生成に失敗しました: {e}")
