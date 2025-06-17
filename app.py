@@ -35,24 +35,32 @@ def load_csv_data(uploaded_file, encoding):
         return None
 
 def extract_year_month(df):
-    """データから年月を抽出"""
+    """データから年月を抽出（最新の年月を優先）"""
     if '利用年月日（自）' in df.columns:
-        # 日付文字列から年月を抽出
-        dates = df['利用年月日（自）'].dropna()
-        sample_date = dates.iloc[0]
+        year_months = []
         
-        # YY/MM/DD形式を解析
-        if '/' in sample_date:
-            parts = sample_date.split('/')
-            if len(parts) >= 2:
-                year = int(parts[0])
-                month = int(parts[1])
-                # 2桁年を4桁年に変換
-                if year < 50:  # 25年以下は2025年以降と仮定
-                    year += 2000
-                elif year < 100:  # 50-99年は1950-1999年と仮定
-                    year += 1900
-                return year, month
+        # 全ての日付を確認して年月を収集
+        for date_str in df['利用年月日（自）'].dropna():
+            if '/' in str(date_str):
+                parts = str(date_str).split('/')
+                if len(parts) >= 2:
+                    try:
+                        year = int(parts[0])
+                        month = int(parts[1])
+                        # 2桁年を4桁年に変換
+                        if year < 50:  # 25年以下は2025年以降と仮定
+                            year += 2000
+                        elif year < 100:  # 50-99年は1950-1999年と仮定
+                            year += 1900
+                        year_months.append((year, month))
+                    except ValueError:
+                        continue
+        
+        if year_months:
+            # 最新の年月を返す
+            year_months.sort(reverse=True)
+            return year_months[0]
+    
     return None, None
 
 def get_highway_sections():
