@@ -95,7 +95,7 @@ def get_highway_sections():
 
 def match_csv_to_template(df, year, month, highway_from, highway_to):
     """CSVデータをテンプレートの入力可能箇所にマッチング"""
-    from datetime import datetime
+    from datetime import datetime, time
     import calendar
     
     # 月の日数を取得
@@ -124,14 +124,17 @@ def match_csv_to_template(df, year, month, highway_from, highway_to):
     for day in range(1, last_day + 1):
         template_data['daily_data'][day] = {
             'outbound_confirmed': None,  # D列（往路利用確認）
-            'outbound_amount': None,     # E列（往路利用金額）
+            'outbound_amount': 0,        # E列（往路利用金額）
             'return_confirmed': None,    # G列（復路利用確認）
-            'return_amount': None        # H列（復路利用金額）
+            'return_amount': 0,          # H列（復路利用金額）
+            'morning_trips': [],         # 午前中の利用記録
+            'afternoon_trips': []        # 午後の利用記録
         }
     
     # CSVデータを解析して日別データにマッピング
     for index, row in df.iterrows():
         date_str = row['利用年月日（自）']
+        time_str = row['時分（自）']
         
         try:
             if '/' in date_str:
@@ -151,21 +154,78 @@ def match_csv_to_template(df, year, month, highway_from, highway_to):
                     if year_part == year and month_part == month and 1 <= day_part <= last_day:
                         day = day_part
                         
-                        # 往復判定
+                        # 時刻の解析（HH:MM形式）
+                        is_morning = True  # デフォルトは午前
+                        if ':' in str(time_str):
+                            try:
+                                hour = int(str(time_str).split(':')[0])
+                                is_morning = hour < 12  # 12時未満は午前
+                            except:
+                                is_morning = True
+                        
+                        # 往復判定と利用区間チェック
                         from_ic = str(row['利用ＩＣ（自）'])
                         to_ic = str(row['利用ＩＣ（至）'])
                         amount = row['通行料金']
                         
+                        # 利用区間内での利用かチェック
+                        is_in_route = False
+                        is_traffic_stop = False
+                        
                         if highway_from in from_ic and highway_to in to_ic:
-                            # 往路
-                            template_data['daily_data'][day]['outbound_confirmed'] = '○'
-                            template_data['daily_data'][day]['outbound_amount'] = amount
+                            # 往路（出発地→到着地）
+                            is_in_route = True
+                            # 利用区間内での下車チェック（同じIC間での利用は通行止の可能性）
+                            if from_ic == to_ic or (highway_from in to_ic and highway_to in from_ic):
+                                is_traffic_stop = True
+                            
+                            if is_morning:
+                                template_data['daily_data'][day]['morning_trips'].append(amount)
+                                template_data['daily_data'][day]['outbound_confirmed'] = '通行止' if is_traffic_stop else '○'
+                            else:
+                                template_data['daily_data'][day]['afternoon_trips'].append(amount)
+                                template_data['daily_data'][day]['return_confirmed'] = '通行止' if is_traffic_stop else '○'
+                                
                         elif highway_to in from_ic and highway_from in to_ic:
-                            # 復路
-                            template_data['daily_data'][day]['return_confirmed'] = '○'
-                            template_data['daily_data'][day]['return_amount'] = amount
+                            # 復路（到着地→出発地）
+                            is_in_route = True
+                            # 利用区間内での下車チェック
+                            if from_ic == to_ic or (highway_to in to_ic and highway_from in from_ic):
+                                is_traffic_stop = True
+                            
+                            if is_morning:
+                                template_data['daily_data'][day]['morning_trips'].append(amount)
+                                template_data['daily_data'][day]['outbound_confirmed'] = '通行止' if is_traffic_stop else '○'
+                            else:
+                                template_data['daily_data'][day]['afternoon_trips'].append(amount)
+                                template_data['daily_data'][day]['return_confirmed'] = '通行止' if is_traffic_stop else '○'
+                        
+                        # 利用区間内での利用があった場合の料金集計
+                        elif highway_from in from_ic or highway_to in from_ic or highway_from in to_ic or highway_to in to_ic:
+                            # 利用区間に関連する利用
+                            if is_morning:
+                                template_data['daily_data'][day]['morning_trips'].append(amount)
+                                if not template_data['daily_data'][day]['outbound_confirmed']:
+                                    template_data['daily_data'][day]['outbound_confirmed'] = '○'
+                            else:
+                                template_data['daily_data'][day]['afternoon_trips'].append(amount)
+                                if not template_data['daily_data'][day]['return_confirmed']:
+                                    template_data['daily_data'][day]['return_confirmed'] = '○'
+                                    
         except (ValueError, IndexError):
             continue
+    
+    # 日別料金の合計を計算
+    for day in range(1, last_day + 1):
+        day_data = template_data['daily_data'][day]
+        
+        # 午前中の利用額合計（往路）
+        if day_data['morning_trips']:
+            day_data['outbound_amount'] = sum(day_data['morning_trips'])
+        
+        # 午後の利用額合計（復路）
+        if day_data['afternoon_trips']:
+            day_data['return_amount'] = sum(day_data['afternoon_trips'])
     
     return template_data
 
@@ -215,13 +275,13 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
             # 往路データ
             if data['outbound_confirmed']:
                 ws[f'D{row}'] = data['outbound_confirmed']
-            if data['outbound_amount']:
+            if data['outbound_amount'] > 0:
                 ws[f'E{row}'] = data['outbound_amount']
             
             # 復路データ
             if data['return_confirmed']:
                 ws[f'G{row}'] = data['return_confirmed']
-            if data['return_amount']:
+            if data['return_amount'] > 0:
                 ws[f'H{row}'] = data['return_amount']
     
     # 後半（16-31日）の日別利用データを入力
@@ -235,13 +295,13 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
             # 往路データ（右側）
             if data['outbound_confirmed']:
                 ws[f'L{row}'] = data['outbound_confirmed']
-            if data['outbound_amount']:
+            if data['outbound_amount'] > 0:
                 ws[f'M{row}'] = data['outbound_amount']
             
             # 復路データ（右側）
             if data['return_confirmed']:
                 ws[f'O{row}'] = data['return_confirmed']
-            if data['return_amount']:
+            if data['return_amount'] > 0:
                 ws[f'P{row}'] = data['return_amount']
     
     # 28日目の右側（L28, M28, O28, P28）も処理
@@ -252,12 +312,12 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
             
             if data['outbound_confirmed']:
                 ws['L28'] = data['outbound_confirmed']
-            if data['outbound_amount']:
+            if data['outbound_amount'] > 0:
                 ws['M28'] = data['outbound_amount']
             
             if data['return_confirmed']:
                 ws['O28'] = data['return_confirmed']
-            if data['return_amount']:
+            if data['return_amount'] > 0:
                 ws['P28'] = data['return_amount']
     
     return wb
