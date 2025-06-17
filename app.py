@@ -237,37 +237,24 @@ def match_csv_to_template(df, year, month, highway_from, highway_to):
     
     return template_data
 
-def calculate_usage_amount_by_date_formula(df, ws):
-    """=DATE(B5,D5,B13)アルゴリズムで日付とマッチしている箇所の利用金額を算出"""
+def calculate_usage_amount_by_date_formula(df, year, month):
+    """=DATE(year,month,day)アルゴリズムで日付とマッチしている箇所の利用金額を算出"""
     from datetime import datetime
+    import calendar
     
-    # B5（令和年）、D5（月）、B13～B28（日）から日付を構築してマッチング
-    reiwa_year = ws['B5'].value if ws['B5'].value else 0
-    target_month = ws['D5'].value if ws['D5'].value else 0
-    target_year = reiwa_year + 2018  # 令和年を西暦に変換
+    # 月の日数を取得
+    last_day = calendar.monthrange(year, month)[1]
+    
+    # 処理開始
+    print(f"Processing {df.shape[0]} records for {year}-{month:02d}")
     
     # 日付マッチングによる利用金額の計算
     usage_amounts = {}
     
-    # 前半15日（13-27行）- 左側のB列から日付を取得
-    for row in range(13, 28):
-        day = ws[f'B{row}'].value
-        if day and isinstance(day, (int, float)) and 1 <= day <= 31:
-            target_date = datetime(target_year, target_month, int(day))
-            usage_amounts[int(day)] = calculate_daily_usage_from_csv(df, target_date)
-    
-    # 後半（16-31日）- 右側のJ列から日付を取得  
-    for row in range(13, 28):
-        day = ws[f'J{row}'].value
-        if day and isinstance(day, (int, float)) and 1 <= day <= 31:
-            target_date = datetime(target_year, target_month, int(day))
-            usage_amounts[int(day)] = calculate_daily_usage_from_csv(df, target_date)
-    
-    # 31日の処理（J28）
-    day_31 = ws['J28'].value
-    if day_31 and isinstance(day_31, (int, float)) and day_31 == 31:
-        target_date = datetime(target_year, target_month, 31)
-        usage_amounts[31] = calculate_daily_usage_from_csv(df, target_date)
+    # 1日から月末まで全ての日付をチェック
+    for day in range(1, last_day + 1):
+        target_date = datetime(year, month, day)
+        usage_amounts[day] = calculate_daily_usage_from_csv(df, target_date)
     
     return usage_amounts
 
@@ -278,15 +265,79 @@ def calculate_daily_usage_from_csv(df, target_date):
     morning_confirmed = None
     afternoon_confirmed = None
     
-    target_date_str = target_date.strftime('%y/%m/%d')
+    # 複数の日付フォーマットに対応
+    target_date_formats = []
     
-    for index, row in df.iterrows():
-        date_str = str(row['利用年月日（自）'])
-        time_str = str(row['時分（自）'])
+    # 基本フォーマット
+    target_date_formats.append(target_date.strftime('%y/%m/%d'))    # 25/05/01
+    target_date_formats.append(target_date.strftime('%Y/%m/%d'))    # 2025/05/01
+    
+    # ゼロパディングなしフォーマット（プラットフォーム依存を回避）
+    y2 = target_date.strftime('%y')
+    y4 = target_date.strftime('%Y')
+    m_padded = target_date.strftime('%m')
+    m_no_pad = str(target_date.month)
+    d_padded = target_date.strftime('%d')
+    d_no_pad = str(target_date.day)
+    
+    target_date_formats.extend([
+        f"{y2}/{m_no_pad}/{d_no_pad}",      # 25/5/1
+        f"{y4}/{m_no_pad}/{d_no_pad}",      # 2025/5/1
+        f"{y2}/{m_padded}/{d_no_pad}",      # 25/05/1
+        f"{y4}/{m_padded}/{d_no_pad}",      # 2025/05/1
+        f"{y2}/{m_no_pad}/{d_padded}",      # 25/5/01
+        f"{y4}/{m_no_pad}/{d_padded}",      # 2025/5/01
+    ])
+    
+    # 日付フォーマット確認（初回のみ）
+    if target_date.day == 1:
+        print(f"Matching date format example: {target_date_formats[0]}")
+    
+    for _, row in df.iterrows():
+        # 直接列名でアクセス（CSVの構造が確認済みのため）
+        try:
+            date_str = str(row['利用年月日（自）']).strip()
+            time_str = str(row['時分（自）']).strip()
+            amount = float(row['通行料金'])
+        except (KeyError, ValueError, TypeError):
+            # フォールバック：インデックスベースで取得
+            try:
+                date_str = str(row.iloc[0]).strip()
+                time_str = str(row.iloc[1]).strip()
+                amount = float(row.iloc[8])
+            except (ValueError, TypeError, IndexError):
+                continue
         
-        # 日付の正規化とマッチング
-        if date_str == target_date_str or date_str == target_date.strftime('%Y/%m/%d'):
-            amount = row['通行料金']
+        # 日付の正規化とマッチング（複数フォーマット対応）
+        date_match = False
+        for target_format in target_date_formats:
+            if date_str == target_format:
+                date_match = True
+                break
+        
+        # 手動での日付パース（より柔軟な対応）
+        if not date_match and '/' in date_str:
+            try:
+                parts = date_str.split('/')
+                if len(parts) >= 3:
+                    csv_year = int(parts[0])
+                    csv_month = int(parts[1])
+                    csv_day = int(parts[2])
+                    
+                    # 年の正規化
+                    if csv_year < 50:
+                        csv_year += 2000
+                    elif csv_year < 100:
+                        csv_year += 1900
+                    
+                    if (csv_year == target_date.year and 
+                        csv_month == target_date.month and 
+                        csv_day == target_date.day):
+                        date_match = True
+            except (ValueError, IndexError):
+                continue
+        
+        if date_match and amount > 0:
             
             # 時刻による午前/午後の判定
             is_morning = True
@@ -304,12 +355,18 @@ def calculate_daily_usage_from_csv(df, target_date):
                 afternoon_amount += amount
                 afternoon_confirmed = '○'
     
-    return {
+    result = {
         'morning_amount': morning_amount,
         'afternoon_amount': afternoon_amount,
         'morning_confirmed': morning_confirmed,
         'afternoon_confirmed': afternoon_confirmed
     }
+    
+    # 処理結果（データがある場合のみ）
+    if morning_amount > 0 or afternoon_amount > 0:
+        print(f"✓ {target_date.strftime('%m/%d')}: Morning={morning_amount}, Afternoon={afternoon_amount}")
+    
+    return result
 
 def generate_expense_report_from_template(df, year, month, highway_from, highway_to, one_way_fee, monthly_allowance, organization="", position="", name=""):
     """テンプレートファイルをベースに利用実績簿を生成（水色箇所のみ入力）"""
@@ -350,49 +407,58 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     ws['P5'] = highway_to
     ws['M6'] = one_way_fee
     
-    # DATE(B5,D5,B13)アルゴリズムで利用金額を算出
-    usage_amounts = calculate_usage_amount_by_date_formula(df, ws)
+    # DATE(year,month,day)アルゴリズムで利用金額を算出
+    usage_amounts = calculate_usage_amount_by_date_formula(df, year, month)
     
-    # 新しいアルゴリズムによる利用金額を適用
+    # 利用金額をExcelテンプレートに転記
+    transferred_count = 0
+    
     for day in range(1, last_day_num + 1):
         if day in usage_amounts:
             day_data = usage_amounts[day]
             
-            # 前半15日（13-27行）- 左側
-            if day <= 15:
-                row = day + 12  # 1日→13行, 2日→14行, ...
+            # データがある場合のみ処理
+            if (day_data['morning_amount'] > 0 or day_data['afternoon_amount'] > 0 or 
+                day_data['morning_confirmed'] or day_data['afternoon_confirmed']):
                 
-                # 往路データ
-                if day_data['morning_confirmed']:
-                    ws[f'D{row}'] = day_data['morning_confirmed']
-                if day_data['morning_amount'] > 0:
-                    ws[f'E{row}'] = day_data['morning_amount']
+                transferred_count += 1
                 
-                # 復路データ
-                if day_data['afternoon_confirmed']:
-                    ws[f'G{row}'] = day_data['afternoon_confirmed']
-                if day_data['afternoon_amount'] > 0:
-                    ws[f'H{row}'] = day_data['afternoon_amount']
-            
-            # 後半（16-31日）- 右側
-            elif day >= 16:
-                row = day - 3  # 16日→13行, 17日→14行, ...
-                
-                # 31日の特別処理
-                if day == 31:
-                    row = 28
+                # 前半15日（13-27行）- 左側
+                if day <= 15:
+                    row = day + 12  # 1日→13行, 2日→14行, ...
                     
-                # 往路データ（右側）
-                if day_data['morning_confirmed']:
-                    ws[f'L{row}'] = day_data['morning_confirmed']
-                if day_data['morning_amount'] > 0:
-                    ws[f'M{row}'] = day_data['morning_amount']
+                    # 往路データ
+                    if day_data['morning_confirmed']:
+                        ws[f'D{row}'] = day_data['morning_confirmed']
+                    if day_data['morning_amount'] > 0:
+                        ws[f'E{row}'] = day_data['morning_amount']
+                    
+                    # 復路データ
+                    if day_data['afternoon_confirmed']:
+                        ws[f'G{row}'] = day_data['afternoon_confirmed']
+                    if day_data['afternoon_amount'] > 0:
+                        ws[f'H{row}'] = day_data['afternoon_amount']
                 
-                # 復路データ（右側）
-                if day_data['afternoon_confirmed']:
-                    ws[f'O{row}'] = day_data['afternoon_confirmed']
-                if day_data['afternoon_amount'] > 0:
-                    ws[f'P{row}'] = day_data['afternoon_amount']
+                # 後半（16-31日）- 右側
+                elif day >= 16:
+                    if day <= 30:
+                        row = day - 15 + 12  # 16日→13行, 17日→14行, ..., 30日→27行
+                    else:  # 31日
+                        row = 28
+                        
+                    # 往路データ（右側）
+                    if day_data['morning_confirmed']:
+                        ws[f'L{row}'] = day_data['morning_confirmed']
+                    if day_data['morning_amount'] > 0:
+                        ws[f'M{row}'] = day_data['morning_amount']
+                    
+                    # 復路データ（右側）
+                    if day_data['afternoon_confirmed']:
+                        ws[f'O{row}'] = day_data['afternoon_confirmed']
+                    if day_data['afternoon_amount'] > 0:
+                        ws[f'P{row}'] = day_data['afternoon_amount']
+    
+    print(f"✓ Transferred {transferred_count} days of usage data to Excel template")
     
     return wb
 
