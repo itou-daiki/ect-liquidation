@@ -173,7 +173,13 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     """テンプレートファイルをベースに利用実績簿を生成（水色箇所のみ入力）"""
     
     # テンプレートファイルをコピー
-    template_path = '/workspaces/etc-statement-generator/生成するファイルの例/2025_04_高速道路等利用実績簿（テンプレート）.xlsx'
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(current_dir, '生成するファイルの例', '2025_04_高速道路等利用実績簿（テンプレート）.xlsx')
+    
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"テンプレートファイルが見つかりません: {template_path}")
+    
     wb = load_workbook(template_path)
     ws = wb.active
     
@@ -265,9 +271,9 @@ def main():
     
     # 基本情報設定
     st.sidebar.header("基本情報")
-    organization = st.sidebar.text_input("所属", value="")
-    position = st.sidebar.text_input("職", value="")
-    name = st.sidebar.text_input("氏名", value="")
+    organization = st.sidebar.text_input("所属", value="日田高等学校")
+    position = st.sidebar.text_input("職", value="教諭")
+    name = st.sidebar.text_input("氏名", value="伊藤大貴")
     
     st.sidebar.header("利用区間設定")
     # 高速道路区間選択
