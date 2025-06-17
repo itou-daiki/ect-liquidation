@@ -297,9 +297,6 @@ def main():
     # 片道料金設定
     one_way_fee = st.sidebar.number_input("片道料金（円）", min_value=0, value=2680, step=10)
     
-    # 月間特別料金等加算額設定
-    monthly_allowance = st.sidebar.number_input("月間特別料金等加算額（認定額）（円）", min_value=0, value=112560, step=100)
-    
     # メインエリア
     col1, col2 = st.columns([2, 1])
     
@@ -336,13 +333,13 @@ def main():
                     with col2_stat:
                         st.metric("総利用料金", f"¥{total_fee:,}")
                     with col3_stat:
-                        expected_trips = monthly_allowance // one_way_fee
+                        expected_trips = 112560 // one_way_fee  # 固定値を使用
                         st.metric("想定利用回数", f"{expected_trips}回")
                     
                     # 実績簿生成ボタン
                     if st.button("利用実績簿を生成", type="primary"):
                         try:
-                            wb = generate_expense_report_from_template(df, year, month, highway_from, highway_to, one_way_fee, monthly_allowance, organization, position, name)
+                            wb = generate_expense_report_from_template(df, year, month, highway_from, highway_to, one_way_fee, 112560, organization, position, name)
                             
                             # Excelファイルをバイナリデータに変換
                             excel_buffer = io.BytesIO()
@@ -390,7 +387,7 @@ def main():
             st.write(f"**氏名:** {name}")
         st.write(f"**利用区間:** {highway_from} ⇔ {highway_to}")
         st.write(f"**片道料金:** ¥{one_way_fee:,}")
-        st.write(f"**月間認定額:** ¥{monthly_allowance:,}")
+        st.write(f"**月間認定額:** ¥112,560")
         
         st.markdown("---")
         st.subheader("📋 テンプレート準拠")
