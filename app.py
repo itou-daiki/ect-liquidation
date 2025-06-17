@@ -278,8 +278,20 @@ def main():
     st.sidebar.header("利用区間設定")
     # 高速道路区間選択
     highway_sections = get_highway_sections()
-    highway_from = st.sidebar.selectbox("出発地点", highway_sections, index=0)  # 大分米良がデフォルト
-    highway_to = st.sidebar.selectbox("到着地点", highway_sections, index=1)    # 日田がデフォルト
+    
+    # 「大分米良」と「日田」のインデックスを取得
+    try:
+        oita_index = highway_sections.index("大分米良")
+    except ValueError:
+        oita_index = 0
+    
+    try:
+        hita_index = highway_sections.index("日田")
+    except ValueError:
+        hita_index = 1
+    
+    highway_from = st.sidebar.selectbox("出発地点", highway_sections, index=oita_index)
+    highway_to = st.sidebar.selectbox("到着地点", highway_sections, index=hita_index)
     
     st.sidebar.header("料金設定")
     # 片道料金設定
