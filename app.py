@@ -237,7 +237,7 @@ def match_csv_to_template(df, year, month, highway_from, highway_to):
     
     return template_data
 
-def calculate_usage_amount_by_date_formula(df, year, month):
+def calculate_usage_amount_by_date_formula(df, year, month, one_way_fee=2680):
     """=DATE(year,month,day)アルゴリズムで日付とマッチしている箇所の利用金額を算出"""
     from datetime import datetime
     import calendar
@@ -254,7 +254,7 @@ def calculate_usage_amount_by_date_formula(df, year, month):
     # 1日から月末まで全ての日付をチェック
     for day in range(1, last_day + 1):
         target_date = datetime(year, month, day)
-        usage_amounts[day] = calculate_daily_usage_from_csv(df, target_date)
+        usage_amounts[day] = calculate_daily_usage_from_csv(df, target_date, one_way_fee)
     
     return usage_amounts
 
@@ -350,10 +350,18 @@ def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
             
             if is_morning:
                 morning_amount += amount
-                morning_confirmed = '○'
+                # 設定された片道料金と一致する場合のみ「○」、それ以外は空白
+                if amount == one_way_fee:
+                    morning_confirmed = '○'
+                else:
+                    morning_confirmed = None  # 空白
             else:
                 afternoon_amount += amount
-                afternoon_confirmed = '○'
+                # 設定された片道料金と一致する場合のみ「○」、それ以外は空白
+                if amount == one_way_fee:
+                    afternoon_confirmed = '○'
+                else:
+                    afternoon_confirmed = None  # 空白
     
     result = {
         'morning_amount': morning_amount,
@@ -408,7 +416,7 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     ws['M6'] = one_way_fee
     
     # DATE(year,month,day)アルゴリズムで利用金額を算出
-    usage_amounts = calculate_usage_amount_by_date_formula(df, year, month)
+    usage_amounts = calculate_usage_amount_by_date_formula(df, year, month, one_way_fee)
     
     # 利用金額をExcelテンプレートに転記
     transferred_count = 0
