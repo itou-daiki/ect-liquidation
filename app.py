@@ -258,7 +258,7 @@ def calculate_usage_amount_by_date_formula(df, year, month):
     
     return usage_amounts
 
-def calculate_daily_usage_from_csv(df, target_date):
+def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
     """指定された日付のCSVデータから利用金額を計算"""
     morning_amount = 0
     afternoon_amount = 0
