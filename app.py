@@ -248,7 +248,7 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     import os
     from datetime import datetime
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(current_dir, '生成するファイルの例', '2025_04_高速道路等利用実績簿（テンプレート）.xlsx')
+    template_path = os.path.join(current_dir, 'templates', '2025_04_高速道路等利用実績簿（テンプレート）.xlsx')
     
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"テンプレートファイルが見つかりません: {template_path}")
