@@ -448,7 +448,6 @@ def main():
         2. **設定を確認**
            - 出発地点・到着地点を選択
            - 片道料金を入力
-           - 月間認定額を入力
         
         3. **実績簿を生成**
            - 「利用実績簿を生成」ボタンをクリック
@@ -465,7 +464,6 @@ def main():
             st.write(f"**氏名:** {name}")
         st.write(f"**利用区間:** {highway_from} ⇔ {highway_to}")
         st.write(f"**片道料金:** ¥{one_way_fee:,}")
-        st.write(f"**月間認定額:** ¥112,560")
         
 
 if __name__ == "__main__":
