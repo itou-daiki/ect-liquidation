@@ -420,7 +420,6 @@ def main():
         st.markdown("""
         1. **CSVファイルをアップロード**
            - ETCカード利用明細のCSVファイルを選択
-           - ETC利用明細のCSVはコチラからダウンロードできます:
            - [ETC利用明細ダウンロード](https://www2.etc-meisai.jp/etc/R?funccode=1013000000&nextfunc=1013000000)
         
         2. **設定を確認**
