@@ -234,19 +234,15 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     
     # テンプレートファイルをコピー
     import os
+    from datetime import datetime
     current_dir = os.path.dirname(os.path.abspath(__file__))
     template_path = os.path.join(current_dir, '生成するファイルの例', '2025_04_高速道路等利用実績簿（テンプレート）.xlsx')
     
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"テンプレートファイルが見つかりません: {template_path}")
     
-    wb = load_workbook(template_path)
+    wb = load_workbook(template_path, data_only=False)  # 数式を保持
     ws = wb.active
-    
-    # CSVデータをテンプレート形式にマッチング
-    template_data = match_csv_to_template(df, year, month, highway_from, highway_to)
-    
-    # 水色箇所（入力可能箇所）のみに値を設定
     
     # ヘッダー情報
     if organization:
@@ -256,69 +252,150 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
     if name:
         ws['N3'] = name
     
-    # 日付情報
+    # 日付情報を設定（E56, E57に月の初日と最終日を設定）
     ws['B5'] = year - 2018  # 令和年
     ws['D5'] = month
+    
+    # 計算用の日付設定
+    first_day = datetime(year, month, 1)
+    last_day_num = calendar.monthrange(year, month)[1]
+    last_day = datetime(year, month, last_day_num)
+    ws['E56'] = first_day
+    ws['E57'] = last_day
     
     # 高速道路情報
     ws['M5'] = highway_from
     ws['P5'] = highway_to
     ws['M6'] = one_way_fee
     
-    # 日別利用データを入力
-    # 前半15日（13-27行）
+    # CSVデータを日付ごとに整理
+    daily_usage = {}
+    
+    for index, row in df.iterrows():
+        date_str = row['利用年月日（自）']
+        time_str = row['時分（自）']
+        
+        try:
+            if '/' in date_str:
+                parts = date_str.split('/')
+                if len(parts) >= 3:
+                    year_part = int(parts[0])
+                    month_part = int(parts[1])
+                    day_part = int(parts[2])
+                    
+                    # 年を正規化
+                    if year_part < 50:
+                        year_part += 2000
+                    elif year_part < 100:
+                        year_part += 1900
+                    
+                    # 指定された年月と一致するかチェック
+                    if year_part == year and month_part == month:
+                        day = day_part
+                        
+                        if day not in daily_usage:
+                            daily_usage[day] = {
+                                'morning_trips': [],
+                                'afternoon_trips': [],
+                                'outbound_confirmed': None,
+                                'return_confirmed': None
+                            }
+                        
+                        # 時刻の解析（HH:MM形式）
+                        is_morning = True
+                        if ':' in str(time_str):
+                            try:
+                                hour = int(str(time_str).split(':')[0])
+                                is_morning = hour < 12
+                            except:
+                                is_morning = True
+                        
+                        # 往復判定と利用区間チェック
+                        from_ic = str(row['利用ＩＣ（自）'])
+                        to_ic = str(row['利用ＩＣ（至）'])
+                        amount = row['通行料金']
+                        
+                        # 利用区間との一致チェック
+                        is_route_match = False
+                        is_traffic_stop = False
+                        
+                        if highway_from in from_ic and highway_to in to_ic:
+                            # 往路
+                            is_route_match = True
+                            if from_ic == to_ic:
+                                is_traffic_stop = True
+                        elif highway_to in from_ic and highway_from in to_ic:
+                            # 復路
+                            is_route_match = True
+                            if from_ic == to_ic:
+                                is_traffic_stop = True
+                        elif highway_from in from_ic or highway_to in from_ic or highway_from in to_ic or highway_to in to_ic:
+                            # 利用区間に関連
+                            is_route_match = True
+                        
+                        if is_route_match:
+                            if is_morning:
+                                daily_usage[day]['morning_trips'].append(amount)
+                                daily_usage[day]['outbound_confirmed'] = '通行止' if is_traffic_stop else '○'
+                            else:
+                                daily_usage[day]['afternoon_trips'].append(amount)
+                                daily_usage[day]['return_confirmed'] = '通行止' if is_traffic_stop else '○'
+                                
+        except (ValueError, IndexError):
+            continue
+    
+    # テンプレートの日付セルに基づいてデータを入力
+    # 前半15日（13-27行）- 左側
     for row in range(13, 28):
         day = row - 12  # 1日から15日
-        if day in template_data['daily_data']:
-            data = template_data['daily_data'][day]
+        
+        if day in daily_usage:
+            data = daily_usage[day]
             
             # 往路データ
             if data['outbound_confirmed']:
                 ws[f'D{row}'] = data['outbound_confirmed']
-            if data['outbound_amount'] > 0:
-                ws[f'E{row}'] = data['outbound_amount']
+            if data['morning_trips']:
+                ws[f'E{row}'] = sum(data['morning_trips'])
             
             # 復路データ
             if data['return_confirmed']:
                 ws[f'G{row}'] = data['return_confirmed']
-            if data['return_amount'] > 0:
-                ws[f'H{row}'] = data['return_amount']
+            if data['afternoon_trips']:
+                ws[f'H{row}'] = sum(data['afternoon_trips'])
     
-    # 後半（16-31日）の日別利用データを入力
+    # 後半（16-31日）- 右側
     for row in range(13, 28):
-        day = (row - 12) + 15  # 16日から31日（月によって調整）
-        last_day = calendar.monthrange(year, month)[1]
+        day = (row - 12) + 15  # 16日から30日
         
-        if day <= last_day and day in template_data['daily_data']:
-            data = template_data['daily_data'][day]
+        if day <= last_day_num and day in daily_usage:
+            data = daily_usage[day]
             
             # 往路データ（右側）
             if data['outbound_confirmed']:
                 ws[f'L{row}'] = data['outbound_confirmed']
-            if data['outbound_amount'] > 0:
-                ws[f'M{row}'] = data['outbound_amount']
+            if data['morning_trips']:
+                ws[f'M{row}'] = sum(data['morning_trips'])
             
             # 復路データ（右側）
             if data['return_confirmed']:
                 ws[f'O{row}'] = data['return_confirmed']
-            if data['return_amount'] > 0:
-                ws[f'P{row}'] = data['return_amount']
+            if data['afternoon_trips']:
+                ws[f'P{row}'] = sum(data['afternoon_trips'])
     
-    # 28日目の右側（L28, M28, O28, P28）も処理
-    if 28 <= calendar.monthrange(year, month)[1]:
-        day = 28
-        if day in template_data['daily_data']:
-            data = template_data['daily_data'][day]
-            
-            if data['outbound_confirmed']:
-                ws['L28'] = data['outbound_confirmed']
-            if data['outbound_amount'] > 0:
-                ws['M28'] = data['outbound_amount']
-            
-            if data['return_confirmed']:
-                ws['O28'] = data['return_confirmed']
-            if data['return_amount'] > 0:
-                ws['P28'] = data['return_amount']
+    # 28行目の右側（31日）の処理
+    if 31 <= last_day_num and 31 in daily_usage:
+        data = daily_usage[31]
+        
+        if data['outbound_confirmed']:
+            ws['L28'] = data['outbound_confirmed']
+        if data['morning_trips']:
+            ws['M28'] = sum(data['morning_trips'])
+        
+        if data['return_confirmed']:
+            ws['O28'] = data['return_confirmed']
+        if data['afternoon_trips']:
+            ws['P28'] = sum(data['afternoon_trips'])
     
     return wb
 
