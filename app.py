@@ -191,7 +191,8 @@ def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
             except (ValueError, IndexError):
                 continue
         
-        if date_match and amount > 0:
+        # ETC利用があった場合（金額に関係なく）
+        if date_match:
             
             # 時刻による午前/午後の判定
             is_morning = True
@@ -204,18 +205,12 @@ def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
             
             if is_morning:
                 morning_amount += amount
-                # 設定された片道料金と一致する場合のみ「○」、それ以外は空白
-                if amount == one_way_fee:
-                    morning_confirmed = '○'
-                else:
-                    morning_confirmed = None  # 空白
+                # ETC利用があった場合は必ず「○」を記載
+                morning_confirmed = '○'
             else:
                 afternoon_amount += amount
-                # 設定された片道料金と一致する場合のみ「○」、それ以外は空白
-                if amount == one_way_fee:
-                    afternoon_confirmed = '○'
-                else:
-                    afternoon_confirmed = None  # 空白
+                # ETC利用があった場合は必ず「○」を記載
+                afternoon_confirmed = '○'
     
     result = {
         'morning_amount': morning_amount,
@@ -225,7 +220,7 @@ def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
     }
     
     # 処理結果（データがある場合のみ）
-    if morning_amount > 0 or afternoon_amount > 0:
+    if morning_confirmed or afternoon_confirmed:
         print(f"✓ {target_date.strftime('%m/%d')}: Morning={morning_amount}, Afternoon={afternoon_amount}")
     
     return result
