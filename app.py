@@ -408,7 +408,7 @@ def main():
                             st.download_button(
                                 label="📥 Excelファイルをダウンロード",
                                 data=excel_buffer.getvalue(),
-                                file_name=f"{year}_{month}_高速道路利用実績簿（）.xlsx",
+                                file_name=f"{year}_{month}_高速道路利用実績簿（{name}）.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             )
                             
