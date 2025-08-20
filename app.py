@@ -287,14 +287,12 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
                     # 往路データ
                     if day_data['morning_confirmed']:
                         ws[f'D{row}'] = day_data['morning_confirmed']
-                    if day_data['morning_amount'] > 0:
-                        ws[f'E{row}'] = day_data['morning_amount']
+                        ws[f'E{row}'] = day_data['morning_amount']  # 利用確認があれば金額も必ず表示
                     
                     # 復路データ
                     if day_data['afternoon_confirmed']:
                         ws[f'G{row}'] = day_data['afternoon_confirmed']
-                    if day_data['afternoon_amount'] > 0:
-                        ws[f'H{row}'] = day_data['afternoon_amount']
+                        ws[f'H{row}'] = day_data['afternoon_amount']  # 利用確認があれば金額も必ず表示
                 
                 # 後半（16-31日）- 右側
                 elif day >= 16:
@@ -306,14 +304,12 @@ def generate_expense_report_from_template(df, year, month, highway_from, highway
                     # 往路データ（右側）
                     if day_data['morning_confirmed']:
                         ws[f'L{row}'] = day_data['morning_confirmed']
-                    if day_data['morning_amount'] > 0:
-                        ws[f'M{row}'] = day_data['morning_amount']
+                        ws[f'M{row}'] = day_data['morning_amount']  # 利用確認があれば金額も必ず表示
                     
                     # 復路データ（右側）
                     if day_data['afternoon_confirmed']:
                         ws[f'O{row}'] = day_data['afternoon_confirmed']
-                    if day_data['afternoon_amount'] > 0:
-                        ws[f'P{row}'] = day_data['afternoon_amount']
+                        ws[f'P{row}'] = day_data['afternoon_amount']  # 利用確認があれば金額も必ず表示
     
     print(f"✓ Transferred {transferred_count} days of usage data to Excel template")
     
