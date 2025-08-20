@@ -152,7 +152,7 @@ def calculate_daily_usage_from_csv(df, target_date, one_way_fee=2680):
         try:
             date_str = str(row['利用年月日（自）']).strip()
             time_str = str(row['時分（自）']).strip()
-            amount = float(row['通行料金'])
+            amount = float(row['後納料金'])
         except (KeyError, ValueError, TypeError):
             # フォールバック：インデックスベースで取得
             try:
