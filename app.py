@@ -383,7 +383,7 @@ def main():
                     
                     # 統計情報
                     total_records = len(df)
-                    total_fee = df['通行料金'].sum()
+                    total_fee = df['後納料金'].sum()
                     
                     col1_stat, col2_stat, col3_stat = st.columns(3)
                     with col1_stat:
