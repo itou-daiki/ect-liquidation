@@ -234,26 +234,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`テンプレートファイルが見つかりません: ${response.statusText}`);
             }
             const arrayBuffer = await response.arrayBuffer();
+            // Reading with cellStyles:true is crucial for preserving styles.
             const wb = XLSX.read(arrayBuffer, { type: 'buffer', cellStyles: true, bookVBA: true });
             const ws = wb.Sheets[wb.SheetNames[0]];
 
             logStatus('Excelファイルにデータを書き込んでいます...', 'info');
-            
-            // --- Write data to worksheet ---
-            ws['C3'] = { v: organizationInput.value };
-            ws['K3'] = { v: positionInput.value };
-            ws['N3'] = { v: nameInput.value };
-            
-            ws['B5'] = { v: year - 2018 }; // 令和年
-            ws['D5'] = { v: month };
-            
-            ws['M5'] = { v: highwayFromSelect.value };
-            ws['P5'] = { v: highwayToSelect.value };
-            ws['M6'] = { v: oneWayFee };
 
-            // For formulas if needed, but direct value writing is safer here.
-            ws['E56'] = { t: 'd', v: new Date(Date.UTC(year, month - 1, 1)) };
-            ws['E57'] = { t: 'd', v: new Date(Date.UTC(year, month - 1, lastDay)) };
+            // Helper function to update cell value while preserving style
+            const updateCell = (address, value, type) => {
+                let cell = ws[address];
+                if (!cell) {
+                    // If cell doesn't exist, create it. Style might be inferred from row/col.
+                    ws[address] = { t: type, v: value };
+                    return;
+                }
+                // Update value and type, preserving style (cell.s)
+                cell.t = type;
+                cell.v = value;
+                // Delete the old formatted text string (.w) so it can be regenerated
+                delete cell.w;
+            };
+            
+            // --- Write data to worksheet using the helper ---
+            updateCell('C3', organizationInput.value, 's');
+            updateCell('K3', positionInput.value, 's');
+            updateCell('N3', nameInput.value, 's');
+            
+            updateCell('B5', year - 2018, 'n'); // 令和年
+            updateCell('D5', month, 'n');
+            
+            updateCell('M5', highwayFromSelect.value, 's');
+            updateCell('P5', highwayToSelect.value, 's');
+            updateCell('M6', oneWayFee, 'n');
+
+            // Update dates for formulas
+            updateCell('E56', new Date(Date.UTC(year, month - 1, 1)), 'd');
+            updateCell('E57', new Date(Date.UTC(year, month - 1, lastDay)), 'd');
 
             for (let day = 1; day <= lastDay; day++) {
                 const dayData = usageAmounts[day];
@@ -261,22 +277,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (day <= 15) {
                         const row = day + 13;
                         if (dayData.morningConfirmed) {
-                            ws[`D${row}`] = { v: dayData.morningConfirmed };
-                            ws[`E${row}`] = { v: dayData.morningAmount };
+                            updateCell(`D${row}`, dayData.morningConfirmed, 's');
+                            updateCell(`E${row}`, dayData.morningAmount, 'n');
                         }
                         if (dayData.afternoonConfirmed) {
-                            ws[`G${row}`] = { v: dayData.afternoonConfirmed };
-                            ws[`H${row}`] = { v: dayData.afternoonAmount };
+                            updateCell(`G${row}`, dayData.afternoonConfirmed, 's');
+                            updateCell(`H${row}`, dayData.afternoonAmount, 'n');
                         }
                     } else { // 16-31
                         const row = (day <= 30) ? (day - 15 + 13) : 29; // 16->14 .. 31->29
                         if (dayData.morningConfirmed) {
-                            ws[`L${row}`] = { v: dayData.morningConfirmed };
-                            ws[`M${row}`] = { v: dayData.morningAmount };
+                            updateCell(`L${row}`, dayData.morningConfirmed, 's');
+                            updateCell(`M${row}`, dayData.morningAmount, 'n');
                         }
                         if (dayData.afternoonConfirmed) {
-                            ws[`O${row}`] = { v: dayData.afternoonConfirmed };
-                            ws[`P${row}`] = { v: dayData.afternoonAmount };
+                            updateCell(`O${row}`, dayData.afternoonConfirmed, 's');
+                            updateCell(`P${row}`, dayData.afternoonAmount, 'n');
                         }
                     }
                 }
@@ -284,7 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // --- Create downloadable file ---
             logStatus('Excelファイルを生成しています...', 'info');
-            const outputWb = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            // The `bookSST: true` option can help with compatibility.
+            const outputWb = XLSX.write(wb, { bookType: 'xlsx', type: 'array', bookSST: true });
             const blob = new Blob([outputWb], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);
 
