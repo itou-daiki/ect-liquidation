@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高速道路利用実績簿生成システム</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- SheetJS (for Excel manipulation) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- PapaParse (for CSV parsing) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>🛣️ 高速道路利用実績簿生成システム</h1>
+    </header>
+    <main>
+        <div class="container">
+            <div class="settings-panel">
+                <h2>設定</h2>
+                <div class="setting-group">
+                    <h3>基本情報</h3>
+                    <label for="organization">所属</label>
+                    <input type="text" id="organization" value="日田高等学校">
+                    <label for="position">職</label>
+                    <input type="text" id="position" value="教諭">
+                    <label for="name">氏名</label>
+                    <input type="text" id="name" value="伊藤大貴">
+                </div>
+                <div class="setting-group">
+                    <h3>利用区間設定</h3>
+                    <label for="highway_from">出発地点</label>
+                    <select id="highway_from"></select>
+                    <label for="highway_to">到着地点</label>
+                    <select id="highway_to"></select>
+                </div>
+                <div class="setting-group">
+                    <h3>料金設定</h3>
+                    <label for="one_way_fee">片道料金（円）</label>
+                    <input type="number" id="one_way_fee" value="2680" min="0" step="10">
+                    <p class="help-text">
+                        💡 利用料金の試算:
+                        <a href="https://search.w-nexco.co.jp/ic_input.php" target="_blank" rel="noopener noreferrer">NEXCO西日本 料金・ルート検索</a>
+                    </p>
+                </div>
+            </div>
+            <div class="main-panel">
+                <h2>CSVファイルのアップロード</h2>
+                <p>ETCカード利用明細CSVファイルをアップロードしてください。<a href="https://www2.etc-meisai.jp/etc/R?funccode=1013000000&nextfunc=1013000000" target="_blank" rel="noopener noreferrer">ETC利用明細ダウンロードはこちら</a></p>
+                <input type="file" id="csv_file" accept=".csv">
+                
+                <button id="generate_button" type="button">利用実績簿を生成</button>
+
+                <div id="status_messages"></div>
+                <div id="download_area"></div>
+                 <div class="preview-area">
+                    <h3>データプレビュー</h3>
+                    <div id="data_preview"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <p>※生成されたExcelファイルは必ず確認し、必要に応じて手動で調整してください。</p>
+        <p>※証明書のPDFも一緒に提出するのを忘れずに！</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
