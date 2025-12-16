@@ -42,6 +42,7 @@ h1, h2, h3 {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 0; /* Fix for flexbox overflow */
 }
 
 .setting-group {
@@ -127,7 +128,6 @@ button:hover {
 }
 
 #data_preview table {
-    width: 100%;
     border-collapse: collapse;
 }
 
