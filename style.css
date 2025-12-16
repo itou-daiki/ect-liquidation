@@ -120,6 +120,7 @@ button:hover {
     margin-top: 1.5rem;
     max-height: 300px;
     overflow-y: auto;
+    overflow-x: auto;
     border: 1px solid #ddd;
     padding: 1rem;
     border-radius: 4px;
@@ -153,4 +154,38 @@ footer {
     font-size: 0.9rem;
     color: #666;
     margin-top: 0.5rem;
+}
+
+/* Modern File Upload Area */
+.file-upload-area {
+    border: 2px dashed #007bff;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    background-color: #f8f9fa;
+    color: #007bff;
+    transition: background-color 0.2s, border-color 0.2s;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.file-upload-area:hover, .file-upload-area.dragover {
+    background-color: #e9ecef;
+    border-color: #0056b3;
+}
+
+.file-upload-area p {
+    margin: 0;
+    font-weight: 500;
+    pointer-events: none; /* Make sure the label click works */
+}
+
+#file_name_display {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: #333;
+    font-weight: normal;
+    pointer-events: none;
 }

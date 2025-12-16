@@ -11,11 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusMessagesDiv = document.getElementById('status_messages');
     const downloadAreaDiv = document.getElementById('download_area');
     const dataPreviewDiv = document.getElementById('data_preview');
+    const uploadArea = document.querySelector('.file-upload-area');
+    const fileNameDisplay = document.getElementById('file_name_display');
+
+    let parsedCsvData = null; // To hold parsed data
 
     // --- Initial Setup ---
 
     function getHighwaySections() {
-        // From app.py
         const sections = [
             "玖珠", "湯布院", "別府", "大分米良", "大分光吉", "大分宮河内",
             "大分松岡", "大分", "津久見", "津久見南", "佐伯", "佐伯堅田",
@@ -29,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const oitaIndex = sections.indexOf("大分米良") > -1 ? sections.indexOf("大分米良") : 0;
         const hitaIndex = sections.indexOf("日田") > -1 ? sections.indexOf("日田") : 1;
 
-        sections.forEach((section, index) => {
+        sections.forEach(section => {
             const optionFrom = new Option(section, section);
             const optionTo = new Option(section, section);
             highwayFromSelect.add(optionFrom);
@@ -44,6 +47,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     generateButton.addEventListener('click', handleGeneration);
+    csvFileInput.addEventListener('change', handleFileSelect);
+
+    // Drag and Drop listeners
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            csvFileInput.files = files;
+            const changeEvent = new Event('change');
+            csvFileInput.dispatchEvent(changeEvent);
+        }
+    });
 
     // --- Helper Functions ---
     function logStatus(message, type = 'info') {
@@ -56,10 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function clearLogs() {
         statusMessagesDiv.innerHTML = '';
         downloadAreaDiv.innerHTML = '';
-        dataPreviewDiv.innerHTML = '';
     }
 
     function displayDataPreview(data, headers) {
+        if (!data || data.length === 0) {
+            dataPreviewDiv.innerHTML = '<p>プレビューするデータがありません。</p>';
+            return;
+        }
         const previewData = data.slice(0, 10);
         let table = '<table><thead><tr>';
         headers.forEach(header => {
@@ -76,47 +103,61 @@ document.addEventListener('DOMContentLoaded', () => {
         table += '</tbody></table>';
         dataPreviewDiv.innerHTML = table;
     }
-    
 
     // --- Core Logic ---
 
-    function handleGeneration() {
+    function handleFileSelect(event) {
         clearLogs();
-        const file = csvFileInput.files[0];
+        dataPreviewDiv.innerHTML = ''; // Clear previous preview
+        parsedCsvData = null; // Reset data
+
+        const file = event.target.files[0];
         if (!file) {
-            logStatus('CSVファイルを選択してください。', 'error');
+            fileNameDisplay.textContent = 'ファイルが選択されていません';
             return;
         }
 
+        fileNameDisplay.textContent = `選択中のファイル: ${file.name}`;
         logStatus('CSVファイルの読み込みを開始します...', 'info');
         
-        // Japanese CSVs often use Shift_JIS. FileReader can read with specified encoding.
         const reader = new FileReader();
         reader.readAsText(file, 'Shift_JIS'); 
 
-        reader.onload = (event) => {
+        reader.onload = (e) => {
             logStatus('CSVファイルの解析を開始します...', 'info');
-            const csvText = event.target.result;
-
-            Papa.parse(csvText, {
+            Papa.parse(e.target.result, {
                 header: true,
                 skipEmptyLines: true,
                 complete: (results) => {
                     if (results.errors.length > 0) {
                         logStatus(`CSV解析エラー: ${results.errors[0].message}`, 'error');
                         console.error(results.errors);
+                        parsedCsvData = null;
                         return;
                     }
-                    logStatus('CSVの解析が完了しました。', 'success');
-                    displayDataPreview(results.data, results.meta.fields);
-                    processAndGenerateExcel(results.data);
+                    if (results.data) {
+                        logStatus('CSVの解析が完了しました。プレビューを表示します。', 'success');
+                        parsedCsvData = results.data;
+                        displayDataPreview(results.data, results.meta.fields);
+                    }
                 }
             });
         };
 
         reader.onerror = () => {
             logStatus('ファイルの読み込みに失敗しました。エンコーディングがShift_JISでない可能性があります。', 'error');
+            parsedCsvData = null;
         };
+    }
+
+    function handleGeneration() {
+        clearLogs();
+        if (!parsedCsvData) {
+            logStatus('CSVファイルを選択してください。', 'error');
+            return;
+        }
+        logStatus('利用実績簿を生成しています...', 'info');
+        processAndGenerateExcel(parsedCsvData);
     }
     
     function extractYearMonth(data) {
@@ -217,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const oneWayFee = parseFloat(oneWayFeeInput.value);
 
-        // --- Calculate usage for the whole month ---
         const lastDay = new Date(year, month, 0).getDate();
         const usageAmounts = {};
         for (let day = 1; day <= lastDay; day++) {
@@ -225,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
             usageAmounts[day] = calculateDailyUsage(data, targetDate);
         }
         
-        // --- Load Template and Generate Excel ---
         try {
             logStatus('Excelテンプレートを読み込んでいます...', 'info');
             const templatePath = 'templates/2025_04_高速道路等利用実績簿（テンプレート）.xlsx';
@@ -234,40 +273,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`テンプレートファイルが見つかりません: ${response.statusText}`);
             }
             const arrayBuffer = await response.arrayBuffer();
-            // Reading with cellStyles:true is crucial for preserving styles.
             const wb = XLSX.read(arrayBuffer, { type: 'buffer', cellStyles: true, bookVBA: true, sheetStubs: true });
             const ws = wb.Sheets[wb.SheetNames[0]];
 
             logStatus('Excelファイルにデータを書き込んでいます...', 'info');
 
-            // Helper function to update cell value while preserving style
             const updateCell = (address, value, type) => {
                 let cell = ws[address];
                 if (!cell) {
-                    // If cell doesn't exist, create it. Style might be inferred from row/col.
                     ws[address] = { t: type, v: value };
                     return;
                 }
-                // Update value and type, preserving style (cell.s)
                 cell.t = type;
                 cell.v = value;
-                // Delete the old formatted text string (.w) so it can be regenerated
                 delete cell.w;
             };
             
-            // --- Write data to worksheet using the helper ---
             updateCell('C3', organizationInput.value, 's');
             updateCell('K3', positionInput.value, 's');
             updateCell('N3', nameInput.value, 's');
             
-            updateCell('B5', year - 2018, 'n'); // 令和年
+            updateCell('B5', year - 2018, 'n');
             updateCell('D5', month, 'n');
             
             updateCell('M5', highwayFromSelect.value, 's');
             updateCell('P5', highwayToSelect.value, 's');
             updateCell('M6', oneWayFee, 'n');
 
-            // Update dates for formulas
             updateCell('E56', new Date(Date.UTC(year, month - 1, 1)), 'd');
             updateCell('E57', new Date(Date.UTC(year, month - 1, lastDay)), 'd');
 
@@ -284,8 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             updateCell(`G${row}`, dayData.afternoonConfirmed, 's');
                             updateCell(`H${row}`, dayData.afternoonAmount, 'n');
                         }
-                    } else { // 16-31
-                        const row = (day <= 30) ? (day - 15 + 13) : 29; // 16->14 .. 31->29
+                    } else {
+                        const row = (day <= 30) ? (day - 15 + 13) : 29;
                         if (dayData.morningConfirmed) {
                             updateCell(`L${row}`, dayData.morningConfirmed, 's');
                             updateCell(`M${row}`, dayData.morningAmount, 'n');
@@ -298,9 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // --- Create downloadable file ---
             logStatus('Excelファイルを生成しています...', 'info');
-            // The `bookSST: true` option can help with compatibility.
             const outputWb = XLSX.write(wb, { bookType: 'xlsx', type: 'array', bookSST: true });
             const blob = new Blob([outputWb], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);

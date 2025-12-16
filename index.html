@@ -43,7 +43,12 @@
             <div class="main-panel">
                 <h2>CSVファイルのアップロード</h2>
                 <p>ETCカード利用明細CSVファイルをアップロードしてください。<a href="https://www2.etc-meisai.jp/etc/R?funccode=1013000000&nextfunc=1013000000" target="_blank" rel="noopener noreferrer">ETC利用明細ダウンロードはこちら</a></p>
-                <input type="file" id="csv_file" accept=".csv">
+                
+                <label for="csv_file" class="file-upload-area">
+                    <p>ここにファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
+                    <span id="file_name_display">ファイルが選択されていません</span>
+                </label>
+                <input type="file" id="csv_file" accept=".csv" hidden>
                 
                 <button id="generate_button" type="button">利用実績簿を生成</button>
 
