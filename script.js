@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const arrayBuffer = await response.arrayBuffer();
             // Reading with cellStyles:true is crucial for preserving styles.
-            const wb = XLSX.read(arrayBuffer, { type: 'buffer', cellStyles: true, bookVBA: true });
+            const wb = XLSX.read(arrayBuffer, { type: 'buffer', cellStyles: true, bookVBA: true, sheetStubs: true });
             const ws = wb.Sheets[wb.SheetNames[0]];
 
             logStatus('Excelファイルにデータを書き込んでいます...', 'info');
